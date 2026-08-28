@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Food Delivery</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+
+  <style>
+    body { font-family: 'Outfit', sans-serif; background-color: #f8fafc; }
+    .swiggy-orange { background-color: #fc8019; }
+    .swiggy-orange-text { color: #fc8019; }
+    .custom-scroll::-webkit-scrollbar { width: 5px; height: 5px; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    .modal-backdrop { backdrop-filter: blur(4px); background-color: rgba(15, 23, 42, 0.65); }
+    .hide-view { display: none !important; }
+  </style>
+</head>
+<body class="text-slate-800 antialiased min-h-screen flex flex-col justify-between">
+
+  <!-- NAVBAR -->
+  <header class="sticky top-0 z-40 bg-white border-b border-slate-200 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between gap-4">
+      <div class="flex items-center gap-3 cursor-pointer" onclick="showView('homeView')">
+        <div class="w-10 h-10 rounded-xl swiggy-orange flex items-center justify-center text-white font-black text-xl shadow-md">
+          <i class="fa-solid fa-utensils"></i>
+        </div>
+        <span class="text-2xl font-black tracking-tight swiggy-orange-text hidden sm:block">Delivery</span>
+      </div>
+
+      <div class="flex items-center gap-2 text-sm text-slate-600 font-medium">
+        <i class="fa-solid fa-location-dot text-orange-500"></i>
+        <span class="font-bold border-b-2 border-slate-800 pb-0.5">Kankarbagh, Patna</span>
+      </div>
+
+      <div class="flex items-center gap-4">
+        <button onclick="toggleCartDrawer(true)" class="relative flex items-center gap-2 px-4 py-2.5 rounded-full bg-orange-50 hover:bg-orange-100 text-orange-600 font-bold transition">
+          <i class="fa-solid fa-bag-shopping text-lg"></i>
+          <span class="hidden sm:block text-sm">Cart</span>
+          <span id="cartCountBadge" class="bg-orange-500 text-white text-xs px-2 py-0.5 rounded-full font-bold">0</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- VIEW 1: HOME PAGE (RESTAURANTS) -->
+  <main id="homeView" class="max-w-7xl mx-auto px-4 py-8 w-full flex-1">
+    
+    <!-- Search / Filter Area -->
+    <div class="mb-8 flex flex-col sm:flex-row items-center gap-4">
+      <div class="flex-1 w-full relative">
+        <i class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
+        <input type="text" id="searchInput" oninput="handleSearch(this.value)" placeholder="Search restaurants or cuisines..." class="w-full bg-white focus:bg-slate-50 pl-11 pr-4 py-3 rounded-2xl text-sm outline-none border border-slate-200 focus:border-orange-500 shadow-sm transition-all font-medium" />
+      </div>
+      
+      <div class="flex items-center gap-2 overflow-x-auto w-full sm:w-auto custom-scroll pb-2 sm:pb-0">
+        <button onclick="toggleFilter('veg')" id="filterVegBtn" class="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-bold whitespace-nowrap transition shadow-sm hover:border-slate-400">
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-600"></span> Pure Veg
+        </button>
+        <button onclick="toggleFilter('rating')" id="filterRatingBtn" class="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-bold whitespace-nowrap transition shadow-sm hover:border-slate-400">
+          <i class="fa-solid fa-star text-amber-500"></i> Ratings 4.0+
+        </button>
+        <button onclick="resetFilters()" class="text-xs font-bold text-orange-600 hover:text-orange-700 px-3 py-2">
+          Reset
+        </button>
+      </div>
+    </div>
+
+    <h2 class="text-2xl font-black mb-6">Top Restaurants near you</h2>
+    <div id="restaurantsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6"></div>
+
+    <!-- Loading & Empty States -->
+    <div id="loadingIndicator" class="text-center py-20">
+      <i class="fa-solid fa-circle-notch fa-spin text-4xl text-orange-500 mb-3"></i>
+      <p class="text-sm font-bold text-slate-600">Discovering great food...</p>
+    </div>
+
+    <div id="noResults" class="hidden text-center py-20">
+      <i class="fa-solid fa-store-slash text-5xl text-slate-300 mb-3"></i>
+      <h3 class="text-lg font-bold text-slate-700">No restaurants found</h3>
+      <p class="text-sm text-slate-400">Try removing filters or checking spelling.</p>
+    </div>
+  </main>
+
+  <!-- VIEW 2: RESTAURANT MENU PAGE -->
+  <main id="restaurantView" class="max-w-5xl mx-auto px-4 py-8 w-full flex-1 hide-view">
+    <button onclick="showView('homeView')" class="mb-6 flex items-center gap-2 text-sm font-bold text-slate-500 hover:text-orange-500 transition">
+      <i class="fa-solid fa-arrow-left"></i> Back to Restaurants
+    </button>
+    
+    <div class="bg-white rounded-3xl overflow-hidden shadow-lg border border-slate-100 mb-8">
+      <div class="h-48 md:h-64 relative">
+        <img id="restoHeroImg" src="" class="w-full h-full object-cover" />
+        <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
+        <div class="absolute bottom-4 left-6 text-white">
+          <h1 id="restoHeroName" class="text-3xl font-black mb-1"></h1>
+          <p id="restoHeroCuisines" class="text-sm text-slate-300"></p>
+        </div>
+      </div>
+    </div>
+
+    <div class="mb-6 relative">
+      <i class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
+      <input type="text" oninput="filterMenu(this.value)" placeholder="Search in menu..." class="w-full max-w-md bg-white pl-11 pr-4 py-3 rounded-xl text-sm outline-none border border-slate-200 focus:border-orange-500 shadow-sm font-medium" />
+    </div>
+
+    <h2 class="text-2xl font-black mb-6">Full Menu</h2>
+    
+    <div id="menuLoadingIndicator" class="text-center py-10 hidden">
+      <i class="fa-solid fa-circle-notch fa-spin text-3xl text-orange-500 mb-2"></i>
+      <p class="text-xs font-bold text-slate-500">Loading live menu...</p>
+    </div>
+
+    <div id="restoMenuGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-12"></div>
+  </main>
+
+  <!-- VIEW 3: FOOD DETAIL PAGE -->
+  <main id="detailView" class="max-w-5xl mx-auto px-4 py-8 w-full flex-1 hide-view">
+    <button onclick="showView('restaurantView')" class="mb-6 flex items-center gap-2 text-sm font-bold text-slate-500 hover:text-orange-500 transition">
+      <i class="fa-solid fa-arrow-left"></i> Back to Menu
+    </button>
+
+    <div class="bg-white rounded-3xl p-6 shadow-xl border border-slate-100 flex flex-col md:flex-row gap-8 mb-12 relative overflow-hidden">
+      <div class="md:w-1/2 aspect-video md:aspect-square bg-slate-100 rounded-2xl overflow-hidden relative">
+        <img id="detailImg" src="" class="w-full h-full object-cover" onerror="this.src='https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500'" />
+        <div id="detailVegBadge" class="absolute top-4 left-4 px-3 py-1.5 rounded-lg text-xs font-black shadow bg-white"></div>
+      </div>
+      
+      <div class="md:w-1/2 flex flex-col justify-center">
+        <h1 id="detailName" class="text-3xl sm:text-4xl font-black text-slate-800 mb-2"></h1>
+        <p id="detailDesc" class="text-slate-500 mb-4 text-sm leading-relaxed"></p>
+        <p id="detailResto" class="text-sm font-bold text-orange-600 mb-6 cursor-pointer hover:underline" onclick="showView('restaurantView')"></p>
+        
+        <div class="flex items-center gap-4 mb-8">
+          <span class="bg-emerald-100 text-emerald-800 px-3 py-1 rounded-lg text-sm font-black flex items-center gap-1">
+            <i class="fa-solid fa-star text-xs"></i> <span id="detailRating"></span>
+          </span>
+          <span class="text-3xl font-black text-slate-900" id="detailPrice"></span>
+        </div>
+
+        <button id="detailAddBtn" class="w-full py-4 rounded-2xl swiggy-orange hover:bg-orange-600 text-white font-black text-lg shadow-xl shadow-orange-500/30 transition flex items-center justify-center gap-2">
+          Add to Cart <i class="fa-solid fa-cart-plus"></i>
+        </button>
+      </div>
+    </div>
+
+    <div>
+      <h2 class="text-2xl font-black mb-6">Related Foods</h2>
+      <div id="relatedContainer" class="grid grid-cols-1 sm:grid-cols-3 gap-6"></div>
+    </div>
+  </main>
+
+  <!-- CART DRAWER -->
+  <div id="cartDrawer" class="fixed inset-0 z-50 modal-backdrop hidden flex justify-end">
+    <div class="bg-white w-full max-w-md h-full shadow-2xl flex flex-col justify-between animate-in slide-in-from-right duration-200">
+      <div class="p-6 border-b border-slate-200 flex items-center justify-between">
+        <h3 class="text-lg font-black text-slate-800 flex items-center gap-2">
+          <i class="fa-solid fa-bag-shopping swiggy-orange-text"></i> Your Cart
+        </h3>
+        <button onclick="toggleCartDrawer(false)" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition text-slate-600">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div id="cartItemsList" class="flex-1 overflow-y-auto custom-scroll p-6 space-y-4"></div>
+
+      <div class="p-6 border-t border-slate-200 bg-slate-50 space-y-3">
+        <div class="flex justify-between text-sm font-bold text-slate-600"><span>Item Total</span><span id="cartSubtotal">₹0</span></div>
+        <div class="flex justify-between text-xl font-black text-slate-900 border-t border-slate-200 pt-3 mb-2">
+          <span>To Pay</span><span id="cartTotalPay" class="swiggy-orange-text">₹0</span>
+        </div>
+        <button onclick="simulateOrder()" class="w-full py-4 rounded-2xl swiggy-orange hover:bg-orange-600 text-white font-black text-base shadow-xl shadow-orange-500/30 transition">
+          Checkout & Pay <i class="fa-solid fa-arrow-right text-xs ml-1"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SUCCESS MODAL -->
+  <div id="successModal" class="fixed inset-0 z-50 modal-backdrop hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-sm w-full p-8 text-center shadow-2xl">
+      <div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl font-bold animate-bounce">
+        <i class="fa-solid fa-check"></i>
+      </div>
+      <h3 class="text-2xl font-black text-slate-800 mb-2">Order Successful!</h3>
+      <p class="text-xs text-slate-500 mb-6">Your food is being prepared by the restaurant.</p>
+      <button onclick="closeSuccess()" class="w-full py-3.5 rounded-xl bg-slate-900 text-white font-bold text-sm">Return Home</button>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = window.location.origin.includes("onrender.com") ? window.location.origin : "https://swiggyapi-ul44.onrender.com";
+
+    let restaurantsList = [];
+    let currentMenu = [];
+    let currentRestaurant = null;
+    let cart = [];
+    let activeFilters = { veg: false, rating: false, search: '' };
+
+    window.onload = () => {
+      fetchRestaurants();
+    };
+
+    // ========== 1. FETCH RESTAURANTS ==========
+    async function fetchRestaurants() {
+      document.getElementById('loadingIndicator').classList.remove('hidden');
+      document.getElementById('restaurantsGrid').innerHTML = '';
+      document.getElementById('noResults').classList.add('hidden');
+
+      const payload = {
+        "lat": "25.59430",
+        "lng": "85.13520",
+        "collection": "83631",
+        "tags": "layout_CCS_Pizza",
+        "type": "rcv2",
+        "isFiltered": activeFilters.veg || activeFilters.rating,
+        "facets": {}
+      };
+
+      if (activeFilters.veg) payload.facets.isVeg = [{"value": "isVegfacetquery1"}];
+      if (activeFilters.rating) payload.facets.rating = [{"value": "ratingfacetquery1"}];
+
+      try {
+        const res = await fetch(`${API_BASE}/api/restaurants`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const json = await res.json();
+        restaurantsList = json.data || [];
+        document.getElementById('loadingIndicator').classList.add('hidden');
+        renderHomeGrid();
+      } catch (err) {
+        document.getElementById('loadingIndicator').classList.add('hidden');
+        document.getElementById('noResults').classList.remove('hidden');
+      }
+    }
+
+    function renderHomeGrid() {
+      const container = document.getElementById('restaurantsGrid');
+      
+      const filtered = restaurantsList.filter(r => 
+        r.name.toLowerCase().includes(activeFilters.search) || 
+        r.cuisines.join(' ').toLowerCase().includes(activeFilters.search)
+      );
+
+      container.innerHTML = filtered.map(r => `
+        <div onclick="fetchMenu('${r.id}')" class="bg-white rounded-3xl border border-slate-100 overflow-hidden shadow hover:shadow-xl transition cursor-pointer group">
+          <div class="relative h-48 bg-slate-100 overflow-hidden">
+            <img src="${r.image}" onerror="this.src='https://images.unsplash.com/photo-1513104890138-7c749659a591?w=500'" class="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
+            <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
+            <div class="absolute bottom-3 left-4 right-4 text-white">
+              <h3 class="text-xl font-black truncate">${r.name}</h3>
+              <p class="text-xs text-slate-300 truncate">${(r.cuisines || []).join(', ')}</p>
+            </div>
+            <div class="absolute top-3 right-3 bg-white text-slate-800 px-2 py-1 rounded-lg text-xs font-black shadow flex items-center gap-1">
+              <i class="fa-solid fa-star text-emerald-500"></i> ${r.rating}
+            </div>
+          </div>
+          <div class="p-4 flex items-center justify-between text-xs font-bold text-slate-500 bg-slate-50">
+            <span><i class="fa-regular fa-clock text-orange-500"></i> ${r.delivery_time}</span>
+            <span>${r.cost_for_two}</span>
+          </div>
+        </div>
+      `).join('');
+
+      if(filtered.length === 0) document.getElementById('noResults').classList.remove('hidden');
+      else document.getElementById('noResults').classList.add('hidden');
+    }
+
+    // ========== 2. FETCH REAL MENU ==========
+    async function fetchMenu(restoId) {
+      currentRestaurant = restaurantsList.find(x => x.id === restoId);
+      if(!currentRestaurant) return;
+
+      document.getElementById('restoHeroImg').src = currentRestaurant.image;
+      document.getElementById('restoHeroName').innerText = currentRestaurant.name;
+      document.getElementById('restoHeroCuisines').innerText = currentRestaurant.cuisines.join(', ');
+      
+      showView('restaurantView');
+      document.getElementById('restoMenuGrid').innerHTML = '';
+      document.getElementById('menuLoadingIndicator').classList.remove('hidden');
+
+      try {
+        const res = await fetch(`${API_BASE}/api/menu?restaurantId=${restoId}`);
+        const json = await res.json();
+        document.getElementById('menuLoadingIndicator').classList.add('hidden');
+        
+        currentMenu = json.data || [];
+        renderMenuGrid(currentMenu);
+      } catch (e) {
+        document.getElementById('menuLoadingIndicator').classList.add('hidden');
+        document.getElementById('restoMenuGrid').innerHTML = '<p class="text-red-500 font-bold">Failed to load menu.</p>';
+      }
+    }
+
+    function renderMenuGrid(menuList) {
+      const container = document.getElementById('restoMenuGrid');
+      
+      if(menuList.length === 0) {
+        container.innerHTML = '<p class="text-slate-500 font-bold">No items found in menu.</p>';
+        return;
+      }
+
+      container.innerHTML = menuList.map(dish => `
+        <div onclick="openDishDetail('${dish.id}')" class="flex items-center justify-between p-4 bg-white border border-slate-200 rounded-2xl shadow-sm hover:shadow-md transition cursor-pointer group">
+          <div class="flex-1 pr-4">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="w-3 h-3 rounded-full border ${dish.is_veg ? 'border-emerald-600 text-emerald-600' : 'border-rose-600 text-rose-600'} flex items-center justify-center text-[8px]">●</span>
+              <h4 class="text-base font-bold text-slate-800 group-hover:text-orange-600 transition line-clamp-1">${dish.name}</h4>
+            </div>
+            <p class="text-sm font-black text-slate-900 mb-1">₹${dish.price}</p>
+            <p class="text-xs text-slate-500 line-clamp-2">${dish.desc || ''}</p>
+          </div>
+          <div class="relative w-28 h-28 shrink-0 rounded-xl overflow-hidden bg-slate-100">
+            <img src="${dish.image}" onerror="this.style.display='none'" class="w-full h-full object-cover group-hover:scale-110 transition" />
+            <button onclick="event.stopPropagation(); addToCart('${dish.id}')" class="absolute -bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 mb-4 bg-white text-emerald-600 border border-slate-200 font-extrabold text-[10px] px-6 py-1.5 rounded-lg shadow-md hover:bg-emerald-50 transition">
+              ADD
+            </button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function filterMenu(val) {
+      const query = val.toLowerCase().trim();
+      const filtered = currentMenu.filter(d => d.name.toLowerCase().includes(query) || d.desc.toLowerCase().includes(query));
+      renderMenuGrid(filtered);
+    }
+
+    // ========== 3. FOOD DETAILED VIEW ==========
+    function openDishDetail(dishId) {
+      const d = currentMenu.find(x => x.id === dishId);
+      if(!d) return;
+      
+      document.getElementById('detailImg').src = d.image || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500';
+      document.getElementById('detailName').innerText = d.name;
+      document.getElementById('detailDesc').innerText = d.desc;
+      document.getElementById('detailPrice').innerText = `₹${d.price}`;
+      document.getElementById('detailRating').innerText = d.rating;
+      document.getElementById('detailResto').innerText = `By ${currentRestaurant.name}`;
+
+      const veg = document.getElementById('detailVegBadge');
+      veg.innerText = d.is_veg ? 'PURE VEG' : 'NON VEG';
+      veg.className = `absolute top-4 left-4 px-3 py-1.5 rounded-lg text-xs font-black shadow bg-white ${d.is_veg ? 'text-emerald-700' : 'text-rose-700'}`;
+
+      document.getElementById('detailAddBtn').onclick = () => {
+        addToCart(d.id);
+        toggleCartDrawer(true);
+      };
+
+      // Related Foods (Other items from same menu)
+      const related = currentMenu.filter(x => x.id !== d.id).slice(0, 3);
+      document.getElementById('relatedContainer').innerHTML = related.map(rel => `
+        <div onclick="openDishDetail('${rel.id}')" class="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow hover:shadow-lg transition cursor-pointer group">
+          <div class="h-32 bg-slate-100 relative">
+            <img src="${rel.image}" onerror="this.style.display='none'" class="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
+          </div>
+          <div class="p-4">
+            <h4 class="font-black text-slate-800 truncate">${rel.name}</h4>
+            <div class="flex justify-between items-center mt-2 text-xs font-bold text-slate-500">
+              <span class="text-emerald-600"><i class="fa-solid fa-star"></i> ${rel.rating}</span>
+              <span>₹${rel.price}</span>
+            </div>
+          </div>
+        </div>
+      `).join('');
+
+      showView('detailView');
+    }
+
+    // ========== UTILS & CART ==========
+    let searchTimer;
+    function handleSearch(val) {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => {
+        activeFilters.search = val.trim().toLowerCase();
+        renderHomeGrid();
+      }, 300);
+    }
+
+    function toggleFilter(type) {
+      activeFilters[type] = !activeFilters[type];
+      const btnMap = { veg: 'filterVegBtn', rating: 'filterRatingBtn'};
+      if(btnMap[type]) {
+        const btn = document.getElementById(btnMap[type]);
+        if (activeFilters[type]) {
+          btn.classList.add('bg-orange-500', 'text-white', 'border-orange-500');
+          btn.classList.remove('bg-white', 'text-slate-800', 'border-slate-200');
+        } else {
+          btn.classList.remove('bg-orange-500', 'text-white', 'border-orange-500');
+          btn.classList.add('bg-white', 'text-slate-800', 'border-slate-200');
+        }
+        fetchRestaurants();
+      }
+    }
+
+    function resetFilters() {
+      activeFilters = { veg: false, rating: false, search: '' };
+      ['filterVegBtn', 'filterRatingBtn'].forEach(id => {
+        const btn = document.getElementById(id);
+        if(btn) {
+          btn.classList.remove('bg-orange-500', 'text-white', 'border-orange-500');
+          btn.classList.add('bg-white', 'text-slate-800', 'border-slate-200');
+        }
+      });
+      document.getElementById('searchInput').value = '';
+      fetchRestaurants();
+    }
+
+    function showView(viewId) {
+      ['homeView', 'restaurantView', 'detailView'].forEach(id => {
+        document.getElementById(id).classList.add('hide-view');
+      });
+      document.getElementById(viewId).classList.remove('hide-view');
+      window.scrollTo(0,0);
+    }
+
+    function addToCart(dishId) {
+      const d = currentMenu.find(x => x.id === dishId);
+      const existing = cart.find(c => c.id === dishId);
+      if (existing) existing.quantity += 1;
+      else cart.push({ id: d.id, name: d.name, price: d.price, image: d.image, quantity: 1 });
+
+      const badge = document.getElementById('cartCountBadge');
+      badge.classList.add('animate-ping');
+      setTimeout(() => badge.classList.remove('animate-ping'), 300);
+      updateCartUI();
+    }
+
+    function changeQuantity(id, delta) {
+      const idx = cart.findIndex(c => c.id === id);
+      if (idx !== -1) {
+        cart[idx].quantity += delta;
+        if (cart[idx].quantity <= 0) cart.splice(idx, 1);
+      }
+      updateCartUI();
+    }
+
+    function updateCartUI() {
+      const totalCount = cart.reduce((a, b) => a + b.quantity, 0);
+      const subtotal = cart.reduce((a, b) => a + (b.price * b.quantity), 0);
+
+      document.getElementById('cartCountBadge').innerText = totalCount;
+      document.getElementById('cartSubtotal').innerText = `₹${subtotal}`;
+      document.getElementById('cartTotalPay').innerText = `₹${subtotal}`;
+
+      const list = document.getElementById('cartItemsList');
+      if (cart.length === 0) {
+        list.innerHTML = `<div class="h-full flex flex-col items-center justify-center text-slate-400 opacity-60"><i class="fa-solid fa-basket-shopping text-6xl mb-4"></i><p class="font-bold">Your cart is empty.</p></div>`;
+        return;
+      }
+
+      list.innerHTML = cart.map(item => `
+        <div class="flex items-center gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-100">
+          <img src="${item.image}" onerror="this.style.display='none'" class="w-14 h-14 object-cover rounded-xl shrink-0" />
+          <div class="flex-1 pr-2">
+            <h5 class="text-sm font-bold text-slate-800 line-clamp-1">${item.name}</h5>
+            <span class="text-xs text-slate-400 font-semibold">₹${item.price} each</span>
+          </div>
+          <div class="flex flex-col items-end gap-2">
+            <span class="text-sm font-black text-slate-900">₹${item.price * item.quantity}</span>
+            <div class="flex items-center gap-2 bg-white px-1.5 py-1 rounded-lg border border-slate-200 shadow-sm">
+              <button onclick="changeQuantity('${item.id}', -1)" class="text-slate-500 hover:text-orange-600 font-black px-1">-</button>
+              <span class="text-xs font-bold text-slate-800 w-3 text-center">${item.quantity}</span>
+              <button onclick="changeQuantity('${item.id}', 1)" class="text-slate-500 hover:text-orange-600 font-black px-1">+</button>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function toggleCartDrawer(open) {
+      const drawer = document.getElementById('cartDrawer');
+      if (open) drawer.classList.remove('hidden');
+      else drawer.classList.add('hidden');
+    }
+
+    function simulateOrder() {
+      if(cart.length === 0) { alert("Add food to cart first."); return; }
+      toggleCartDrawer(false);
+      document.getElementById('successModal').classList.remove('hidden');
+      cart = [];
+      updateCartUI();
+    }
+
+    function closeSuccess() {
+      document.getElementById('successModal').classList.add('hidden');
+      showView('homeView');
+    }
+  </script>
+</body>
+</html>
