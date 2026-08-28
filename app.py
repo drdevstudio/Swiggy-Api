@@ -7,17 +7,15 @@ app = Flask(__name__, static_folder=".", static_url_path="")
 CORS(app)
 
 SWIGGY_CATALOG_URL = "https://www.swiggy.com/mapi/restaurants/list/update"
-SWIGGY_SEND_OTP_URL = "https://www.swiggy.com/dapi/auth/sms-otp"
-SWIGGY_VERIFY_OTP_URL = "https://www.swiggy.com/dapi/auth/otp-verify"
 SWIGGY_IMAGE_BASE = "https://media-assets.swiggy.com/swiggy/image/upload/fl_lossy,f_auto,q_auto,w_660/"
 
-def get_proxy_headers():
+def get_headers():
     return {
         "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36",
-        "Accept": "*/*",
+        "Accept": "application/json",
         "Content-Type": "application/json",
         "Origin": "https://www.swiggy.com",
-        "Referer": "https://www.swiggy.com/",
+        "Referer": "https://www.swiggy.com/collections/83631?collection_id=83631&search_context=pizza&tags=layout_CCS_Pizza&type=rcv2",
         "platform": "mweb",
         "__fetch_req__": "true",
         "usecache": "true",
@@ -29,41 +27,35 @@ def get_proxy_headers():
 def home():
     if os.path.exists("index.html"):
         return send_file("index.html")
-    return jsonify({
-        "status": "online",
-        "message": "Swiggy Proxy Server is running on Render",
-        "available_endpoints": {
-            "live_restaurants_json": "/api/swiggy/restaurants",
-            "health_check": "/health"
-        }
-    }), 200
+    return jsonify({"status": "online", "message": "API is running"}), 200
 
 @app.route("/health", methods=["GET", "HEAD"])
 @app.route("/ping", methods=["GET", "HEAD"])
 def health_check():
+    """Endpoint for UptimeRobot to ping every 5 minutes"""
     return jsonify({"status": "healthy", "uptime": "active"}), 200
 
-# ----------------- RESTAURANT JSON ENDPOINT (GET & POST) -----------------
-@app.route("/api/swiggy/restaurants", methods=["GET", "POST"])
-@app.route("/api/proxy/restaurants", methods=["GET", "POST"])
+# ----------------- SWIGGY DATA ENDPOINT -----------------
 @app.route("/api/restaurants", methods=["GET", "POST"])
 def get_restaurants():
-    """Fetches real-time restaurant data directly from Swiggy's backend."""
-    # Handle GET query params or POST JSON payload
+    """Fetches real-time restaurant/food data directly from Swiggy's backend."""
     req_data = request.get_json(silent=True) or {}
     
+    # Defaults from the HAR file
     lat = req_data.get("lat") or request.args.get("lat", "25.59430")
     lng = req_data.get("lng") or request.args.get("lng", "85.13520")
     collection_id = req_data.get("collection") or request.args.get("collection", "83631")
     tags = req_data.get("tags") or request.args.get("tags", "layout_CCS_Pizza")
 
-    # Filter params
+    # Filters
     veg_only = request.args.get("veg") == "true" or req_data.get("veg") is True
     rating_4plus = request.args.get("rating") == "true" or req_data.get("rating") is True
     budget_300 = request.args.get("budget") == "true" or req_data.get("budget") is True
     fast_delivery = request.args.get("fast") == "true" or req_data.get("fast") is True
-    search_query = (request.args.get("search") or req_data.get("search") or "").strip().lower()
+    
+    category_query = (request.args.get("category") or req_data.get("category") or "").strip().lower()
 
+    # Construct Swiggy Facets as seen in the HAR file
     facets = {}
     if veg_only:
         facets["isVeg"] = [{"value": "isVegfacetquery1"}]
@@ -91,14 +83,14 @@ def get_restaurants():
         response = requests.post(
             SWIGGY_CATALOG_URL,
             json=swiggy_payload,
-            headers=get_proxy_headers(),
+            headers=get_headers(),
             timeout=15
         )
         swiggy_data = response.json()
     except Exception as e:
-        return jsonify({"success": False, "error": f"Failed to reach Swiggy: {str(e)}"}), 502
+        return jsonify({"success": False, "error": f"Failed to fetch data: {str(e)}"}), 502
 
-    # Parse and extract presentation cards from Swiggy
+    # Parse Swiggy Presentation Cards
     raw_cards = swiggy_data.get("data", {}).get("cards", [])
     restaurants = []
 
@@ -119,21 +111,16 @@ def get_restaurants():
         avg_rating = float(info.get("avgRating") or 4.0)
         cost_str = info.get("costForTwo", "₹300 for two")
 
-        # Generate selectable dishes for the product detail/suggestions flow
-        dish_names = [f"Special {c.rstrip('s')}" for c in cuisines[:3]] or ["Classic Margherita", "Cheese Stuffed Garlic Bread", "Choco Mousse"]
-        sample_dishes = []
-        prices = [199, 249, 329, 149]
-
-        for idx, d_name in enumerate(dish_names):
-            sample_dishes.append({
-                "id": f"{resto_id}-d{idx+1}",
-                "name": d_name,
-                "price": prices[idx % len(prices)],
-                "is_veg": veg_only or (idx % 2 == 0),
-                "rating": round(avg_rating + (0.1 if idx == 0 else -0.1), 1),
-                "description": f"Artisan recipe prepared with fresh ingredients from {name}.",
-                "image": img_url
-            })
+        # Map cuisines to a primary category for the frontend
+        primary_category = "Other"
+        if cuisines:
+            c_lower = cuisines[0].lower()
+            if "pizza" in c_lower: primary_category = "Pizza"
+            elif "burger" in c_lower: primary_category = "Burger"
+            elif "dessert" in c_lower or "bakery" in c_lower: primary_category = "Desserts"
+            elif "indian" in c_lower: primary_category = "Indian"
+            elif "chinese" in c_lower or "asian" in c_lower: primary_category = "Chinese"
+            else: primary_category = cuisines[0]
 
         restaurants.append({
             "id": resto_id,
@@ -144,55 +131,19 @@ def get_restaurants():
             "cost_for_two": cost_str,
             "locality": info.get("locality") or info.get("areaName", "Patna"),
             "cuisines": cuisines,
-            "menu": sample_dishes
+            "category": primary_category,
+            "is_veg": veg_only or "Veg" in str(cuisines)
         })
 
-    if search_query:
-        restaurants = [
-            r for r in restaurants
-            if search_query in r["name"].lower() or any(search_query in c.lower() for c in r["cuisines"])
-        ]
+    # Filter by category if requested by frontend
+    if category_query and category_query != "all":
+        restaurants = [r for r in restaurants if category_query in r["category"].lower() or any(category_query in c.lower() for c in r["cuisines"])]
 
     return jsonify({
         "success": True,
-        "source": "live_swiggy_backend",
         "total": len(restaurants),
         "data": restaurants
     }), 200
-
-# ----------------- AUTHENTICATION ENDPOINTS -----------------
-@app.route("/api/proxy/auth/send-otp", methods=["POST"])
-def proxy_send_otp():
-    client_payload = request.get_json(silent=True) or {}
-    mobile = client_payload.get("mobile")
-
-    if not mobile or len(str(mobile)) != 10:
-        return jsonify({"statusMessage": "Invalid mobile number"}), 400
-
-    try:
-        response = requests.post(
-            SWIGGY_SEND_OTP_URL,
-            json={"mobile": str(mobile)},
-            headers=get_proxy_headers(),
-            timeout=10
-        )
-        return jsonify(response.json()), response.status_code
-    except Exception as e:
-        return jsonify({"statusMessage": f"Proxy Error: {str(e)}"}), 502
-
-@app.route("/api/proxy/auth/verify-otp", methods=["POST"])
-def proxy_verify_otp():
-    client_payload = request.get_json(silent=True) or {}
-    try:
-        response = requests.post(
-            SWIGGY_VERIFY_OTP_URL,
-            json=client_payload,
-            headers=get_proxy_headers(),
-            timeout=10
-        )
-        return jsonify(response.json()), response.status_code
-    except Exception as e:
-        return jsonify({"statusMessage": f"Proxy Error: {str(e)}"}), 502
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
